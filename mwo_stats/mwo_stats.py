@@ -11,6 +11,7 @@ NUM_ROWS = 24
 TEAM_SIZE = 12
 LANCE_SIZE = 4
 WHITE = 255
+COLUMNS = ['pilot', 'mech','chassi','variant','matchscore','damage']
 
 
 def loadImage(filename):
@@ -70,7 +71,8 @@ def readColValues(img_col, mode='alphanum', debug=False):
 
 
 def getChassiAndVariant(mechs):
-    known_mechs_file = os.path.join(os.path.dirname(sys.argv[0]),'mwo_chassis.csv')
+    file_path = os.path.dirname(os.path.abspath(__file__))
+    known_mechs_file = os.path.join(file_path, 'mwo_chassis.csv')
     known_mechs = pd.read_csv(known_mechs_file)
     known_chassis = sorted(list(known_mechs['chassi']), key=len, reverse=True)
     
@@ -108,9 +110,6 @@ def getChassiAndVariant(mechs):
     return chassis, variants
 
 
-# ========================== MAIN ==========================
-
-
 def displayBestMechs(matches):
     best_mechs = matches[matches['matchscore']>350]
     print('----------------------------------------')
@@ -120,8 +119,68 @@ def displayBestMechs(matches):
     print('BEST CHASSIS')
     print(best_mechs['chassi'].value_counts())
     print('----------------------------------------')
-
-
+    
+    
+class Match():
+    
+    def __init__(self, filename):
+        self.filename = filename
+        self.stats = None
+        
+        
+    def _readStats(self):
+        print(f'Analyzing {self.filename}')
+        img = loadImage(self.filename)
+        # cv2.imshow("cropped", img)
+        # cv2.waitKey(0)
+        
+        # Pilot Column
+        print('reading pilots...')
+        x = 95
+        width = 350
+        img_col = img[:, x:x+width]
+        pilots = readColValues(img_col, mode='Pilot', debug=False)
+        
+        
+        # Damage Column
+        print('reading damage...')
+        x = 1335
+        width = 80
+        img_col = img[:, x:x+width]
+        damage = np.asarray(readColValues(img_col, mode='digits', debug=False), dtype=int)
+        
+        
+        # MatchScore Column
+        print('reading matchscores...')
+        x = 855
+        width = 80
+        img_col = img[:, x:x+width]
+        matchscores = np.asarray(readColValues(img_col, mode='digits', debug=False), dtype=int)
+        
+        
+        # Mech Column
+        print('reading mechs...')
+        x = 455
+        width = 200
+        img_col = img[:, x:x+width]
+        mechs = readColValues(img_col, mode='alphanum', debug=False)
+        print('  determining chassis and variants...')
+        chassi, variant = getChassiAndVariant(mechs)
+        
+        print('done!')
+        
+        self.stats = pd.DataFrame(list(zip(pilots, mechs, chassi, variant, matchscores, damage)), columns=COLUMNS)
+        
+    
+    def getStats(self):
+        if self.stats is None:
+            self._readStats()
+        
+        return self.stats
+        
+    
+    
+# ========================== MAIN ==========================
 if __name__ == '__main__':
     
     load_data = '' 
@@ -130,57 +189,16 @@ if __name__ == '__main__':
     if load_data:
         matches = pd.read_csv(datafile)
     else:
-        columns = ['pilot', 'mech','chassi','variant','matchscore','damage']
         matches = pd.DataFrame(columns=columns)
             
         folder = '/home/koenig/tmp/old'
         
         filenames = glob(folder + '/*.jpg')
-        for filename in filenames:
-            print(f'Analyzing {filename}')
-            img = loadImage(os.path.join(folder, filename))
-            # cv2.imshow("cropped", img)
-            # cv2.waitKey(0)
-            
-            # Pilot Column
-            print('reading pilots...')
-            x = 95
-            width = 350
-            img_col = img[:, x:x+width]
-            pilots = readColValues(img_col, mode='Pilot', debug=False)
-            
-            
-            # Damage Column
-            print('reading damage...')
-            x = 1335
-            width = 80
-            img_col = img[:, x:x+width]
-            damage = np.asarray(readColValues(img_col, mode='digits', debug=False), dtype=int)
-            
-            
-            # MatchScore Column
-            print('reading matchscores...')
-            x = 855
-            width = 80
-            img_col = img[:, x:x+width]
-            matchscores = np.asarray(readColValues(img_col, mode='digits', debug=False), dtype=int)
-            
-            
-            # Mech Column
-            print('reading mechs...')
-            x = 455
-            width = 200
-            img_col = img[:, x:x+width]
-            mechs = readColValues(img_col, mode='alphanum', debug=False)
-            print('  determining chassis and variants...')
-            chassi, variant = getChassiAndVariant(mechs)
-            
-            print('done!')
-            
-            match = pd.DataFrame(list(zip(pilots, mechs, chassi, variant, matchscores, damage)), columns=columns)
+        for filename in filenames[:1]:
+            filename = os.path.join(folder, filename)
+            match = Match(filename).getStats()
+            print(match)
             matches = matches.append(match)
-                          
-            print(matches)
             
         matches.to_csv(datafile, index=False)
         
