@@ -70,46 +70,6 @@ def readColValues(img_col, mode='alphanum', debug=False):
     return values
 
 
-def getChassiAndVariant(mechs):
-    file_path = os.path.dirname(os.path.abspath(__file__))
-    known_mechs_file = os.path.join(file_path, 'mwo_chassis.csv')
-    known_mechs = pd.read_csv(known_mechs_file)
-    known_chassis = sorted(list(known_mechs['chassi']), key=len, reverse=True)
-    
-    chassis = []
-    variants = []
-    for mech in mechs:
-        if mech[:mech.find('(')] in ('MAD-6S', 'MAD-4L','MAD-5A', 'MAD-4HP', 'MAD-4A', 'MAD-AL'):
-            chassi = 'MAD2'
-        else:
-            found = False
-            for chassi in known_chassis:
-                if chassi == mech[:len(chassi)]:
-                    found = True
-                    break
-            if not found:
-                print(f'Unknown mech chassi for "{mech}"')
-                chassi = input('Please enter the chassi name: ')
-                print(f'got "{chassi}"')
-                known_mechs = known_mechs.append({'chassi': chassi}, ignore_index=True)
-                known_mechs.to_csv(known_mechs_file, index=False)
-            
-        chassis.append(chassi)
-        if chassi == 'MAD2':
-            variant = mech[len(chassi)-1:]
-        else:
-            variant = mech[len(chassi):]
-        
-        if len(variant)>0 and variant[0] == '-':
-            variant = variant[1:]
-        if '(' in variant:
-            variant = variant[:variant.find('(')]
-        variants.append(variant)
-            
-                
-    return chassis, variants
-
-
 def displayBestMechs(matches):
     best_mechs = matches[matches['matchscore']>350]
     print('----------------------------------------')
@@ -128,6 +88,46 @@ class Match():
         self.stats = None
         
         
+    def _getChassiAndVariant(self, mechs):
+        file_path = os.path.dirname(os.path.abspath(__file__))
+        known_mechs_file = os.path.join(file_path, 'mwo_chassis.csv')
+        known_mechs = pd.read_csv(known_mechs_file)
+        known_chassis = sorted(list(known_mechs['chassi']), key=len, reverse=True)
+        
+        chassis = []
+        variants = []
+        for mech in mechs:
+            if mech[:mech.find('(')] in ('MAD-6S', 'MAD-4L','MAD-5A', 'MAD-4HP', 'MAD-4A', 'MAD-AL'):
+                chassi = 'MAD2'
+            else:
+                found = False
+                for chassi in known_chassis:
+                    if chassi == mech[:len(chassi)]:
+                        found = True
+                        break
+                if not found:
+                    print(f'Unknown mech chassi for "{mech}"')
+                    chassi = input('Please enter the chassi name: ')
+                    print(f'got "{chassi}"')
+                    known_mechs = known_mechs.append({'chassi': chassi}, ignore_index=True)
+                    known_mechs.to_csv(known_mechs_file, index=False)
+                
+            chassis.append(chassi)
+            if chassi == 'MAD2':
+                variant = mech[len(chassi)-1:]
+            else:
+                variant = mech[len(chassi):]
+            
+            if len(variant)>0 and variant[0] == '-':
+                variant = variant[1:]
+            if '(' in variant:
+                variant = variant[:variant.find('(')]
+            variants.append(variant)
+                
+                    
+        return chassis, variants
+
+    
     def _readStats(self):
         print(f'Analyzing {self.filename}')
         img = loadImage(self.filename)
@@ -165,7 +165,7 @@ class Match():
         img_col = img[:, x:x+width]
         mechs = readColValues(img_col, mode='alphanum', debug=False)
         print('  determining chassis and variants...')
-        chassi, variant = getChassiAndVariant(mechs)
+        chassi, variant = self._getChassiAndVariant(mechs)
         
         print('done!')
         
